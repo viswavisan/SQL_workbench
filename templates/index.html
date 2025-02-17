@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * {box-sizing: border-box;}
+        body {margin: 0;font-family: Arial, sans-serif;}
+
+        #user_window {display:none;width: 100%;height: 100%;position: fixed;padding: 10;background-color: rgba(230, 230, 250, 0.5); top: 50%; left: 50%; transform: translate(-50%, -50%);}
+        #x {float:right;margin-right: 10px;color:red;background: none; border: none; cursor: pointer;}
+        #user_window_1 {width: 250px;position: fixed;padding: 10px;background-color: rgba(230, 230, 250, 1); top: 50%; left: 50%; transform: translate(-50%, -50%);}
+        #login-user {width:100px;position:absolute;right:0}
+        #login-password{width:100px;position:absolute;right:0}
+        #login_button {width:100px;}
+        #logout_button{width:100px;position:absolute;right:0}
+
+        #header {background-color: #00758f;color: white;height: 30px;display: flex;justify-content: space-between;align-items: center;padding: 0 20px;}
+        #user{margin-left: auto;}
+        #title {position: absolute;left: 50%;transform: translateX(-50%);}
+        .container {display: flex;height: calc(100vh - 30px);}
+        .sidebar {background-color: #f4f4f4;width: 250px; padding: 20px; transition: width 0.2s; overflow: auto;min-width:250px;}
+        .resizer { cursor: ew-resize; background-color: #ccc; width: 5px;  height:100%}
+        .main-content { flex-grow: 1; background-color: #fff; padding: 20px; height:100% ;overflow-y: auto;}
+        #query-editor { width: 100%; height: 70px; }
+        #log_window_area {width:100%;height:100%}
+
+        .toolbar { display: flex; justify-content: flex-start; } 
+        .toolbar button { margin-right: 10px; padding: 10px; font-size: 16px; cursor: pointer; border: none; background-color: transparent; } 
+    
+        th,td { border: 1px solid #ccc; padding: 8px; text-align: left; width: 20px;}
+        th { background-color: #f2f2f2; }
+        td {max-width: 300px;overflow: auto;}
+        table { width: 100%; border-collapse: collapse;white-space: nowrap;}
+
+        .results { padding: 10px; flex: 1; overflow-y: auto; }
+        #results-table td::-webkit-scrollbar {display: none;}
+        .context-menu {min-width:200px; min-height:100px;resize: both;display: none; position: absolute; background-color: white; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2); z-index: 1000;flex-direction: column;border-radius: 10px;}
+        .context_menu_header{width:100%;height:22px;background-color: rgb(229, 233, 234);border-top-left-radius: 10px;border-top-right-radius: 10px;text-align: center;}
+        .window_header{width:100%;height:22px;background-color: rgb(229, 233, 234);border-top-left-radius: 1px;border-top-right-radius: 1px;text-align: center;}
+        .close_button{position: absolute;right: 10px;cursor: pointer;}
+        #popup_value   {min-width: 500px !important;max-width:1000px;min-height: 200px !important;max-height:1000px;margin: 1px;padding: 10px;border-radius: 5px;}
+        #create_tables_menu_main th,td { border: 1px solid #ccc; padding: 2px; text-align: center; width: 20px;}
+        #create_tables_menu_main{font-size: 14px;margin: 10px;display: block;}
+        #result_toolbar,#main-content-header{width:100%;height:22px;background-color: rgb(229, 233, 234); }
+         
+
+    </style>
+</head>
+
+<body>
+    <!-- header -->
+    <div id="header">
+        <span id="title">MySQL Workbench</span>
+        <span id="user" onclick="document.getElementById('user_window').style.display = document.getElementById('user_window').style.display=='none' ? 'block' : 'none'">Guest</span>
+    </div>
+
+    <!-- login page -->
+    <div id="user_window" >
+        <button id="x" onclick="document.getElementById('user_window').style.display = 'none' ">x</button>
+
+        <div id="user_window_1" >
+            <br>
+            User <input id="login-user" value="">
+            <br><br>
+            Password <input type='password' id="login-password" value="">
+            <br><br>
+            <button id="login_button"  onclick="login()"  >login </button>
+            <button id="logout_button" onclick="logout()" >logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- side bar -->
+        <div class="sidebar" id="sidebar">
+            <select id="database_host" onchange="get_databases()">
+                {% for i in host %}
+                    <option value="{{i}}">{{i}}</option>
+                {% endfor %}
+            </select><span id='createDatabase'">&#x1F6E2;</span>
+
+            <br><br>
+
+            
+            <h5>SCHEMAS</h5>
+            <ul id="database-list"></ul>
+            <h5>TABLES</h5>
+            <ul id="table-list"></ul>
+        </div>
+
+        <div class="resizer" id="resizer"></div>
+
+        <!-- main page -->
+        <div class="main-content">
+            <div id="main-content-header">
+                <span id="database_name" > </span>
+                <span id="table" style=" position: relative; left: 100px; "></span>
+                
+            </div>
+            <div class="toolbar">
+                <button id="saveButton">&#128190;</button>
+                <button id="execute-query" style="color: rgb(19, 15, 226);">&#x25B6;</button>
+            </div>
+            <textarea id="query-editor" placeholder="Write your SQL query here..."></textarea>
+            <div class="results">
+                <div id="result_toolbar">
+                    <span>primary_key: </span><span id="primary_key"></span>
+                    <span style="margin-left: 100px;">current_table: </span><span  id="current_table"></span>
+                    <button style="margin-left: 100px;" id="insert_row"  onclick="$('#context_menu_text').text($('#current_table').text());insert_row()">+</button>
+                </div>
+                <br>
+                <table id="results-table">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- log bar -->
+        <div class="resizer" id="log-resizer"></div>
+        <div id="log-bar" class="log-bar" style="width: 300px;height:100%;padding-right: 3px;">
+
+            <div id='script_window_header' class="window_header"> 
+                <span id="script_window_text" class="window_text">python</span>
+                <span onclick="$(this).parent().parent().css('display','none')" class=close_button>&#10062;</span>
+            </div>
+            <div class="toolbar">
+                <button id="file_open">&#128194;</button>
+                <button id="saveButton">&#128190;</button>
+                <button id="python-run" style="color: rgb(19, 15, 226);" onclick="run_python()">&#x25B6;</button>
+            </div>
+            <div id="script_window_main" style="height:calc(50% - 55px);">
+                <textarea id="script_window_area" style="width:100%;height:100%;white-space: nowrap;padding: 3px;"></textarea>
+            </div>
+
+            <div id='window_header' class="window_header"> 
+                <span id="window_text" class="window_text">logs</span>
+                <!-- <span onclick="$(this).parent().parent().css('display','none')" class=close_button>&#10062;</span> -->
+            </div>
+            <div id="window_main" style="height:calc(50% - 35px);">
+                <textarea id="log_window_area"  readonly></textarea>
+            </div>
+
+        </div>
+
+        <!-- context menu -->
+        <div id="context_menu" class="context-menu">
+            <div id='context_menu_header' class="context_menu_header"> 
+                <span id="context_menu_text" class="context_menu_text">create database</span>
+                <span onclick="$(this).parent().parent().css('display','none')" class=close_button>&#10062;</span>
+            </div>
+
+            <!-- toolbar menu -->
+            <div id="side_bar_menu" class="context-menu-main">
+                <input id="databaseName" placeholder="Database Name">
+                <button onclick="create_database()">create</button>
+            </div>
+
+            <!-- database menu -->
+            <div id ="databases_menu" class="context-menu-main">
+                <button style='margin: 10px;' onclick="delete_database()">delete</button><br>
+                <button style='margin: 10px;' onclick="show_menu('#create_table_menu',$('#context_menu_text').text())">create_table</button>
+            </div>
+
+            <!-- table menu -->
+            <div id="tables_menu" class="context-menu-main">
+                <button style='margin: 10px;' onclick="delete_table()">delete</button><br>
+                <button style='margin: 10px;' onclick="truncate_table()">truncate</button><br>
+                <button style='margin: 10px;' onclick="insert_row()">insert row</button><br>
+                <button style='margin: 10px;' onclick="show_menu('#alter_table_menu',$('#context_menu_text').text());alter_table()">alter table</button>
+            </div>
+
+            <!-- create table menu -->
+            <div id="create_table_menu" class="context-menu-main">
+                <div id="create_table_menu_toolbar" style="margin: 3px;">
+                    <input id="table_name" placeholder="Table Name">
+                    <button id="create_table" onclick="create_table_add_column()">+</button>
+                </div>
+                <table id="create_tables_menu_main">
+                    <tr><th>column</th><th>data type</th><th>PK</th><th>action</th></tr>
+                </table>
+                <textarea id="create_table_query_field" style="width:100%;"></textarea>
+                <br>
+                <button onclick="generateCreateTableQuery()">fetch query</button>
+                <button onclick="create_table()">create</button>
+            </div>
+
+            <div id="alter_table_menu" class="context-menu-main">
+                <div id="alter_table_menu_toolbar" style="margin: 3px;">
+                    <input id="alter_table_name" placeholder="Table Name">
+                    <button id="alter_table" onclick="alter_table_add_column()">+</button>
+                </div>
+                <table id="alter_tables_menu_main">
+                    <tr><th>column</th><th>data type</th><th>PK</th><th>action</th></tr>
+                </table>
+                <textarea id="alter_table_query_field" style="width:100%;"></textarea>
+                <br>
+                <button onclick="generateAlterTableQuery()">fetch query</button>
+                <button onclick="create_table()">create</button>
+            </div>
+
+            <!-- insert row menu -->
+             <div id="insert_row_menu" class="context-menu-main">
+                <table id="describe_table">
+                    <tr><th>column</th><th>data type</th><th>PK</th><th>value</th></tr>
+                </table>
+                <button onclick="insert_row1()">insert</button>
+             </div>
+
+            <!-- result table menu -->
+            <div id="result_table_menu" class="context-menu-main">
+                <div id="popup_toolbar" style="width:100%;">
+                    <button id="saveCellValue" style="background-color: transparent;border: none;margin-right: 50px;" onclick="update()">&#128190;</button>
+                    primary:<span id="primary_update"></span>
+                </div>
+                <textarea id='popup_value' ></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function update(){
+            let key=$('#context_menu_text').text()
+            let value=$('#popup_value').val()
+            let table=$('#current_table').text()
+            let where=$('#primary_update').text()
+            let query=`update ${table} set ${key}='${value}' where ${where}`
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                print(query)
+                print(JSON.stringify(response))
+                $('#context_menu').css('display','none')
+            })
+        }
+        var user = localStorage.getItem('pp-dashboard-user') || 'Guest';
+        document.getElementById('user').textContent = user;
+        if (document.getElementById('user').textContent=='Guest'){document.getElementById('user_window').style.display='block'}
+                
+
+        $(document).on('contextmenu', '#results-table td', function(event) { 
+            $('#popup_value').val($(this).text());
+            var pk=$('#primary_key').text()
+            var thValue = $('#results-table th').eq($(this).index()).text();
+            var idColumnIndex = $('#results-table th').index($(`#results-table th:contains("${pk}")`));
+            var idValue = $(this).closest('tr').find('td').eq(idColumnIndex).text();
+            $('#primary_update').text(`${pk}='${idValue}'`)
+
+            show_menu('#result_table_menu',thValue)});
+        
+        $(document).on('contextmenu', '#table-list li', function(event) {show_menu('#tables_menu',currentDatabase+'.'+$(this).text())});
+        
+        $(document).on('contextmenu', '#database-list li', function(event) {show_menu('#databases_menu',$(this).text())});
+
+        $('#createDatabase').click(function(event){show_menu('#side_bar_menu','create database')});
+        
+
+
+        function show_menu(current_menu,header_text){
+            event.preventDefault();
+            $('.context-menu-main').css({ display: 'none'});
+            $('#context_menu_text').html(header_text);
+            $(current_menu).css({ display: 'block'})
+            $('#context_menu').css({ display: 'flex', left: event.pageX, top: event.pageY }); }
+
+
+        function create_database() {
+            var dbName=$('#databaseName').val()
+            if (!dbName.startsWith('viswa$')){dbName='viswa$'+dbName}
+            let query='create database '+dbName;
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                alert(JSON.stringify(response))
+                $('#context_menu').css('display','none')
+                get_databases()
+            })}
+
+        function delete_database() {
+            let query='drop database '+ $('#context_menu_text').text();
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                alert(JSON.stringify(response))
+                $('#context_menu').css('display','none')
+                get_databases()
+            })}
+        
+        function delete_table() {
+            let query='drop table '+ $('#context_menu_text').text();
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                alert(JSON.stringify(response))
+                $('#context_menu').css('display','none');
+                get_tables()
+            })}
+
+        function truncate_table() {
+            let query='truncate table '+ $('#context_menu_text').text();
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                $('#context_menu').css('display','none')
+                alert(JSON.stringify(response))
+            }) }
+
+        function insert_row(){
+            if ($('#context_menu_text').text()==''){alert('select table first');return}
+            show_menu('#insert_row_menu',$('#context_menu_text').text())
+            $('#describe_table tbody tr:not(:first)').remove();
+            let table_name=$('#context_menu_text').text()
+            $.post('/execute_query', { query: `Describe ${table_name}` ,host:$('#database_host').val()},function(response){
+                let data=response.results
+                const transformedData = data.map(row => [row[0], row[1], row[3] || "",'']);
+                let table = $('#describe_table');
+                let body = $('<tbody></tbody>').append(transformedData.map(row => $('<tr></tr>').append(row.map((cell, index) => 
+                    index === 3 ? `<td contenteditable="true">${cell}</td>` : `<th>${cell}</th>`).join(''))));
+                table.append(body); })
+            }
+        function insert_row1() {
+            const sql = $('#describe_table tbody tr').slice(1).map(function() {
+            const column = $(this).find('th:first').text();
+            const value = $(this).find('td').text();
+            return column && value ? `${column}, '${value}'` : null;}).get().filter(Boolean);
+            let table_name=$('#context_menu_text').text()
+            let query=sql.length ? `INSERT INTO ${table_name} (${sql.map(s => s.split(',')[0]).join(', ')}) VALUES (${sql.map(s => s.split(',')[1]).join(', ')});` : 'No values to insert.';
+            $.post('/execute_query', { query: query,host:$('#database_host').val()},function(response){
+                $('#context_menu').css('display','none')
+                alert(JSON.stringify(response)) })
+            }
+
+        function print(text){
+            $('#log_window_area').val($('#log_window_area').val()+new Date().toLocaleTimeString()+'> '+text+'\n')
+        }
+
+        function create_table() {
+            let query=$("#create_table_query_field").val();
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                $('#create_tables_menu_main tbody tr:not(:first)').remove();
+                $('#create_table_query_field').val('')
+                $('#table_name').val('')
+
+                $('#context_menu').css('display','none')
+                alert(JSON.stringify(response));
+                get_tables()
+            })}
+        
+        function create_table_add_column(){
+            const table = document.getElementById("create_tables_menu_main");
+            const row = table.insertRow(-1);
+
+            
+            for (let i = 0; i < 4; i++) {
+                const cell = row.insertCell(i);
+                if (i==0){const input = document.createElement('input');cell.appendChild(input);}
+                else if (i==1){
+                    const select = $('<select></select>'); 
+                    select.append($('<option></option>').val('varchar(45)').text('varchar(45)'));
+                    select.append($('<option></option>').val('text').text('text'));
+                    select.append($('<option></option>').val('int').text('int'));
+                    cell.appendChild(select[0]);}
+                else if (i==2){
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'radio';
+                    checkbox.name = 'primaryKey';
+                    cell.appendChild(checkbox);}
+                else if (i == 3){cell.innerHTML = '<span style="cursor: pointer;" onclick="removeColumn(this)">&#128465;</span>';}}
+            }  
+        function removeColumn(button) {const row = button.parentNode.parentNode;row.parentNode.removeChild(row);}
+        
+        function alter_table(){
+            $('#alter_tables_menu_main tbody tr:not(:first)').remove();
+            let query="SHOW COLUMNS FROM test_db.users;";
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response){
+                console.log(response)
+                $('#alter_table_name').val('test_db.users')
+                for (let col of response['results']){
+                    const table = document.getElementById("alter_tables_menu_main");
+                    const row = table.insertRow(-1);
+                    for (let i = 0; i < 4; i++) {
+                        const cell = row.insertCell(i);
+                        if (i==0){const input = document.createElement('input');cell.appendChild(input);input.value=col[0]}
+                        else if (i==1){
+                            const select = $('<select></select>'); 
+                            select.append($('<option></option>').val('varchar(100)').text('varchar(100)'));
+                            select.append($('<option></option>').val('text').text('text'));
+                            select.append($('<option></option>').val('int').text('int'));
+                            select.val(col[1]);
+                            cell.appendChild(select[0]);}
+                        else if (i==2){
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'radio';
+                            checkbox.name = 'primaryKey';
+                            checkbox.checked = (col[3]=='PRI');
+                            cell.appendChild(checkbox);}
+                        else if (i == 3){cell.innerHTML = '<span style="cursor: pointer;" onclick="removeColumn(this)">&#128465;</span>';}}
+                    }  
+
+            })
+            }
+
+            
+
+        let currentDatabase = '';
+        
+        $(document).ready(get_databases())
+        
+        function get_databases() {
+            $.post('/execute_query', { query: "SHOW DATABASES" ,host:$('#database_host').val()},function(response) {
+                $('#database-list').empty();
+                response.results.forEach(function(db) {$('#database-list').append('<li>' + db + '</li>');}); }); }
+
+        $(document).on('click', '#database-list li', function() {
+            currentDatabase = $(this).text(); get_tables()});
+        
+        function get_tables() {
+            $.post('/execute_query', { query: `SHOW TABLES IN ${currentDatabase}`,host:$('#database_host').val()},function(response) {
+                $('#table-list').empty();
+                response.results.forEach(function(table){$('#table-list').append('<li>' + table + '</li>');} )} ) }
+
+
+        $(document).on('click', '#table-list li', function() {
+            const tableName = $(this).text();
+            $('#query-editor').val('SELECT * FROM ' + currentDatabase + '.' + tableName + ' limit 10;');
+            $('#database_name').html('Database : '+currentDatabase)
+            $('#table').html('Table : '+tableName)
+            execute_query() });
+
+        $('#execute-query').click(execute_query)
+            
+        function execute_query(){
+            const query = $('#query-editor').val();
+            $.post('/execute_query', { query: query ,host:$('#database_host').val()}, function(response) { 
+                if (response.results) {
+                    const columns=response['columns']
+                    const results=response['results']
+                    const table=response['table']
+                    const primary=response['primary']
+
+                    $('#results-table thead').empty().append(columns.map(column => `<th>${column}</th>`));
+                    $('#results-table tbody').empty().append(results.map(row => `<tr>${row.map(cell => '<td>'+cell+'</td>').join('')}</tr>`)); 
+                    $('#current_table').html(table)
+                    $('#primary_key').html(primary)
+                }
+                else {alert(JSON.stringify(response)); } }); }
+
+
+        // Make sidebar movable
+        const resizer = document.getElementById('resizer');
+        const sidebar = document.getElementById('sidebar');
+        let isResizing = false;
+        resizer.addEventListener('mousedown', (event) => { event.preventDefault();isResizing = true; });
+        document.addEventListener('mousemove', (event) => { if (isResizing) { const newWidth = event.clientX; if (newWidth > 100) { sidebar.style.width = newWidth + 'px'; } } });
+        document.addEventListener('mouseup', () => { isResizing = false; });
+        
+        // context menu options
+        let isDragging = false;
+        let offsetX, offsetY;
+        let currentMenu;
+        $('.context_menu_header').on('mousedown', function(event) { currentMenu = $(this).parent(); isDragging = true; offsetX = event.clientX - $(this).offset().left; offsetY = event.clientY - $(this).offset().top; $(this).css('cursor', 'move');});
+        $(document).on('mousemove', function(event) { if (isDragging) { currentMenu.css({ left: event.pageX - offsetX, top: event.pageY - offsetY }); } });
+        $(document).on('mouseup', function() { isDragging = false; $('.context_menu_header').css('cursor', 'default'); });
+
+        // Resizing the log bar
+        const logResizer = document.getElementById('log-resizer');
+        const logBar = document.getElementById('log-bar');
+        let isLogResizing = false;
+        logResizer.addEventListener('mousedown', (event) => {event.preventDefault();isLogResizing = true;});
+        document.addEventListener('mousemove', (event) => {if (isLogResizing) {$('#log-bar').width($('#log-bar').width()-(event.clientX - logBar.getBoundingClientRect().left))} });
+        document.addEventListener('mouseup', () => { isLogResizing = false; });
+
+        function generateCreateTableQuery() {
+            const tableName = document.getElementById('table_name').value.trim();
+            if (!tableName) {alert("Please enter a table name.");return;}
+            const columns = [];
+            const rows = document.querySelectorAll('#create_tables_menu_main tbody tr');
+            let primaryKeyColumn = null;
+            rows.forEach((row,index) => {
+                if (index === 0) return;
+                const columnName = row.querySelector('td input').value.trim();
+                const dataType = row.querySelector('td select').value;
+                const isPrimaryKey = row.querySelector('td input[type="radio"]:checked');
+
+                if (columnName) {
+                    columns.push(`${columnName} ${dataType}`);
+                    if (isPrimaryKey) {primaryKeyColumn = columnName;}}
+                });
+            if (columns.length === 0) {alert("Please add at least one column.");return;}
+
+            let query = `CREATE TABLE ${currentDatabase}.${tableName} (\n`;
+            query += columns.join(',\n');
+            if (primaryKeyColumn) {query += `,\nPRIMARY KEY (${primaryKeyColumn})`;}
+            query += `\n);`;
+
+            $('#create_table_query_field').val (query);}
+        
+        function run_python(){
+            let cmd=$("#script_window_area").val()
+            $.post('/run_python', { cmd: cmd }, function(response) {
+                console.log(response)
+                if (response['Print']){response['Print'].map(x=>print(x))}
+                if (response['Data'] && response['Data'].length > 0){
+                    let columns=response['Data'][0]['columns']
+                    if (columns){$('#results-table thead').empty().append(columns.map(column => `<th>${column}</th>`));}
+                    $('#results-table tbody').empty().append(response['Data'][0]['results'].map(row => `<tr>${row.map(cell => '<td>'+cell+'</td>').join('')}</tr>`));
+                }
+            })
+            }
+        
+        $('#script_window_area').on('keydown', function(event) {
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const value = $(this).val();
+                $(this).val(value.substring(0, start) + '    ' + value.substring(end));
+                this.selectionStart = this.selectionEnd = start + 4;}
+            
+            else if (event.key === 'Enter') {
+                event.preventDefault();
+                const start = this.selectionStart;
+                const value = $(this).val();
+                const currentLineStart = value.lastIndexOf('\n', start - 1) + 1;
+                const currentLine = value.substring(currentLineStart, start);
+                const indentation = currentLine.match(/^\s*/)[0];
+                const lastChar = currentLine.trim().slice(-1);
+                const additionalIndentation = (lastChar === ':') ? '    ' : '';
+
+                $(this).val(value.substring(0, start) + '\n' +additionalIndentation+ indentation + value.substring(start));
+                this.selectionStart = this.selectionEnd = start + indentation.length + additionalIndentation.length + 1;
+                $(this).scrollLeft(0)}
+    
+        });
+
+        function login(){
+            user=document.getElementById("login-user").value;
+            if (user==""){return}
+            localStorage.setItem('pp-dashboard-user', user);
+            document.getElementById('user').textContent = user;
+            document.getElementById("user_window").style.display='none';
+        }
+        function logout(){
+            localStorage.removeItem("pp-dashboard-user");
+            document.getElementById('user').textContent = 'Guest';
+            document.getElementById("user_window").style.display='none';
+        }
+
+    </script>
+</body>
+</html>
