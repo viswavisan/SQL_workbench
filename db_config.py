@@ -11,12 +11,4 @@ db={
         'password':'',
         'db':'test_db',
         'port':'0'
-        },
-    'uat':{
-        'host':'csel-integegration-dev-rds.c3bx6n011wpm.ap-south-1.rds.amazonaws.com',
-        'user':'rdsuser',
-        'password':'Chola2021',
-        'db':'CD',
-        'port':'4406'}
-
-    }
+        }}
